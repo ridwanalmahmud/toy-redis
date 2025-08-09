@@ -1,7 +1,9 @@
+#include <errno.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/wait.h>
 
 #define PORT "3490"
 #define ERR 1
@@ -22,4 +24,15 @@ void *get_in_addr(struct sockaddr *sa) {
         return &((struct sockaddr_in *)sa)->sin_addr;
     }
     return &((struct sockaddr_in6 *)sa)->sin6_addr;
+}
+
+void sigchld_handler(int s) {
+    (void)s; // quiet unused variable warning
+
+    // waitpid() might overwrite errno, so we save and restore it:
+    int saved_errno = errno;
+
+    while (waitpid(-1, NULL, WNOHANG) > 0);
+
+    errno = saved_errno;
 }

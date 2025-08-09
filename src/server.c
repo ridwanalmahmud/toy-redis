@@ -27,7 +27,7 @@ int main(void) {
         // get the file descriptor
         fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
         if (fd == -1) {
-            log_errno("client: socket");
+            log_errno("Server: socket");
         }
 
         // set socket options
@@ -38,7 +38,7 @@ int main(void) {
         }
 
         // associates the socket with a port in the local machine
-        int rv = bind(fd, serv_info->ai_addr, serv_info->ai_addrlen);
+        int rv = bind(fd, p->ai_addr, p->ai_addrlen);
         if (rv == -1) {
             log_errno("bind");
             continue;
@@ -59,21 +59,31 @@ int main(void) {
         log_errno("listen");
     }
 
+    struct sigaction sa;
+    sa.sa_handler = sigchld_handler; // reap all dead processes
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        perror("sigaction");
+        exit(1);
+    }
+
+    printf("Server: waiting for connections...\n");
+
     while (1) {
         socklen_t sin_size = sizeof(client_info);
-        struct sockaddr client_addr;
-        int client_fd = accept(fd, &client_addr, &sin_size);
+        int client_fd = accept(fd, (struct sockaddr *)&client_info, &sin_size);
         if (client_fd == -1) {
             log_errno("accept");
         }
 
         // get address in string
         inet_ntop(client_info.ss_family,
-                  get_in_addr(&client_addr),
+                  get_in_addr((struct sockaddr *)&client_info),
                   ip_str,
                   sizeof(ip_str));
 
-        fprintf(stdout, "Connected with %s\n", ip_str);
+        fprintf(stdout, "Server: Connected with %s\n", ip_str);
 
         if (!fork()) { // this is the child process
             close(fd); // close listening socket in child
@@ -84,7 +94,7 @@ int main(void) {
                 log_errno("read");
             }
             rbuf[n] = '\0';
-            printf("Client says: %s\n", rbuf);
+            printf("Client: %s\n", rbuf);
 
             // close the listener
             char wbuf[BUFFER] = "Hello from server"; // write buffer

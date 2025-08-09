@@ -4,7 +4,12 @@
 #include <string.h>
 #include <unistd.h>
 
-int main(void) {
+int main(int argc, char *argv[]) {
+    if (argc != 2) {
+        fprintf(stderr, "usage: client hostname\n");
+        exit(1);
+    }
+
     struct addrinfo hints, *serv_info;
     char ip_str[INET6_ADDRSTRLEN];
 
@@ -13,7 +18,7 @@ int main(void) {
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    int status = getaddrinfo(NULL, PORT, &hints, &serv_info);
+    int status = getaddrinfo(argv[1], PORT, &hints, &serv_info);
     if (status != 0) {
         fprintf(stderr, "%s\n", gai_strerror(status));
         exit(ERR);
@@ -24,7 +29,7 @@ int main(void) {
     for (p = serv_info; p != NULL; p = p->ai_next) {
         fd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
         if (fd == -1) {
-            log_errno("client: socket");
+            log_errno("Client: socket");
         }
 
         int rv = connect(fd, p->ai_addr, p->ai_addrlen);
@@ -37,9 +42,14 @@ int main(void) {
     }
 
     // get address in string
-    inet_ntop(p->ai_family, get_in_addr(p->ai_addr), ip_str, sizeof(ip_str));
+    inet_ntop(p->ai_family,
+              get_in_addr((struct sockaddr *)p->ai_addr),
+              ip_str,
+              sizeof(ip_str));
 
-    fprintf(stdout, "Connected with %s\n", ip_str);
+    fprintf(stdout, "Client: Connected with %s\n", ip_str);
+
+    freeaddrinfo(serv_info);
 
     char wbuf[BUFFER] = "Hello from client"; // write buffer
     // send a message
@@ -54,7 +64,7 @@ int main(void) {
         log_errno("recv");
     }
     rbuf[n] = '\0';
-    printf("Server says: %s\n", rbuf);
+    printf("Server: %s\n", rbuf);
 
     // close the connection
     close(fd);
